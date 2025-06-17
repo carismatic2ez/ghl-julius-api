@@ -1,0 +1,31 @@
+from fastapi import FastAPI, Request
+import requests, os
+
+app = FastAPI()
+
+@app.post("/ghl_webhook")
+async def ghl_hook(request: Request):
+    item = await request.json()
+    session_id  = item["contact"]["id"]
+    user_text   = item["message"]
+    
+    # Send to Julius
+    bot_reply = requests.post(
+        "https://chat.julius.ai/api/chat",
+        headers={"Authorization": f"Bearer {os.getenv('JULIUS_API_KEY')}",
+                 "Content-Type": "application/json"},
+        json={"session_id": session_id, "message": user_text}
+    ).json()["reply"]
+    
+    # Send back to GHL
+    requests.post(
+        "https://rest.gohighlevel.com/v1/conversations/messages",
+        headers={"Authorization": f"Bearer {os.getenv('GHL_API_KEY')}",
+                 "Content-Type": "application/json"},
+        json={
+            "contactId": item["contact"]["id"],
+            "type": "SMS",
+            "body": bot_reply
+        }
+    )
+    return {"status": "ok"}
